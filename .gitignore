@@ -1,0 +1,67 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userprefs
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# MAUI specific
+.maui/
+
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio cache/options
+.vs/
+.vscode/
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# SQLite database files
+*.db3
+*.db3-shm
+*.db3-wal
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Android
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+local.properties
+
+# iOS
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.mobileprovision
+xcuserdata/
