@@ -109,8 +109,8 @@ public partial class MainViewModel : ObservableObject
 
             await _databaseService.SaveRecordAsync(record);
 
-            // 语音播报
-            var announcement = $"{CurrentLocation}, {e.ReadTime:HH点mm分}";
+            // 语音播报 - 增加"巡更成功"
+            var announcement = $"{CurrentLocation}, {e.ReadTime:HH点mm分}, 巡更成功";
             await _ttsService.SpeakAsync(announcement);
 
             // 刷新列表
@@ -127,14 +127,7 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
-            // 显示提示
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-            {
-                await Application.Current!.MainPage!.DisplayAlert(
-                    "打卡成功", 
-                    $"地点: {CurrentLocation}\n时间: {e.ReadTime:yyyy-MM-dd HH:mm:ss}", 
-                    "确定");
-            });
+            // 已取消弹窗提示,改为静默打卡
         }
         catch (Exception ex)
         {
