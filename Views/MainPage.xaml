@@ -4,140 +4,182 @@
              xmlns:viewmodels="clr-namespace:PatrolApp.ViewModels"
              xmlns:models="clr-namespace:PatrolApp.Models"
              x:Class="PatrolApp.Views.MainPage"
-             Title="巡更打卡"
-             x:DataType="viewmodels:MainViewModel">
+             x:DataType="viewmodels:MainViewModel"
+             BackgroundColor="White">
 
-    <Grid RowDefinitions="Auto,Auto,*,Auto" Padding="20">
+    <Grid RowDefinitions="Auto,*" Padding="0">
         
-        <!-- 当前状态显示 -->
-        <Frame Grid.Row="0" 
-               BorderColor="{StaticResource Primary}"
-               CornerRadius="10"
-               Padding="20"
-               Margin="0,0,0,20">
-            <VerticalStackLayout Spacing="10">
-                <Label Text="当前位置"
-                       FontSize="14"
-                       TextColor="{StaticResource Gray600}"/>
-                <Label Text="{Binding CurrentLocation}"
-                       FontSize="24"
-                       FontAttributes="Bold"
-                       TextColor="{StaticResource Primary}"/>
+        <!-- 紫色标题栏 -->
+        <BoxView Grid.Row="0" 
+                 Color="#6B46C1" 
+                 HeightRequest="70"/>
+        <Label Grid.Row="0"
+               Text="巡更打卡"
+               FontSize="24"
+               FontAttributes="Bold"
+               TextColor="White"
+               VerticalOptions="Center"
+               HorizontalOptions="Start"
+               Margin="20,0"/>
+
+        <!-- 主内容区域 -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Spacing="0" Padding="20">
                 
-                <Label Text="当前时间"
-                       FontSize="14"
-                       TextColor="{StaticResource Gray600}"
-                       Margin="0,10,0,0"/>
-                <Label Text="{Binding CurrentTime}"
+                <!-- 当前位置卡片 -->
+                <Frame BorderColor="#E2E8F0"
+                       CornerRadius="12"
+                       Padding="20"
+                       Margin="0,0,0,15"
+                       HasShadow="True">
+                    <VerticalStackLayout Spacing="12">
+                        <Label Text="当前位置"
+                               FontSize="14"
+                               TextColor="#64748B"/>
+                        <Label Text="{Binding CurrentLocation}"
+                               FontSize="32"
+                               FontAttributes="Bold"
+                               TextColor="#6B46C1"/>
+                        
+                        <Label Text="当前时间"
+                               FontSize="14"
+                               TextColor="#64748B"
+                               Margin="0,8,0,0"/>
+                        <Label Text="{Binding CurrentTime}"
+                               FontSize="20"
+                               FontAttributes="Bold"
+                               TextColor="#1E293B"/>
+                        
+                        <HorizontalStackLayout Spacing="10" Margin="0,8,0,0">
+                            <Label Text="NFC状态:"
+                                   FontSize="14"
+                                   TextColor="#64748B"/>
+                            <Label Text="{Binding IsNfcEnabled, Converter={StaticResource BoolToNfcStatusConverter}}"
+                                   FontSize="14"
+                                   FontAttributes="Bold"
+                                   TextColor="{Binding IsNfcEnabled, Converter={StaticResource BoolToColorConverter}}"/>
+                        </HorizontalStackLayout>
+                        
+                        <HorizontalStackLayout Spacing="10" 
+                                             IsVisible="{Binding LastNfcId, Converter={StaticResource StringToBoolConverter}}">
+                            <Label Text="最后读卡:"
+                                   FontSize="14"
+                                   TextColor="#64748B"/>
+                            <Label Text="{Binding LastNfcId}"
+                                   FontSize="14"
+                                   TextColor="#1E293B"/>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- 待同步提示卡片 -->
+                <Frame BorderColor="#FFA500"
+                       BackgroundColor="#FFF7ED"
+                       CornerRadius="12"
+                       Padding="15"
+                       Margin="0,0,0,15"
+                       IsVisible="{Binding UnsyncedCount, Converter={StaticResource IntToBoolConverter}}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Label Grid.Column="0"
+                               Text="⚠️" 
+                               FontSize="24"
+                               VerticalOptions="Center"/>
+                        <Label Grid.Column="1"
+                               Text="{Binding UnsyncedCount, StringFormat='有 {0} 条记录待同步'}"
+                               FontSize="16"
+                               TextColor="#C2410C"
+                               VerticalOptions="Center"
+                               Margin="10,0"/>
+                        <Button Grid.Column="2"
+                                Text="立即同步"
+                                Command="{Binding SyncRecordsCommand}"
+                                BackgroundColor="#FFA500"
+                                TextColor="White"
+                                FontSize="14"
+                                FontAttributes="Bold"
+                                CornerRadius="8"
+                                Padding="20,8"
+                                VerticalOptions="Center"/>
+                    </Grid>
+                </Frame>
+
+                <!-- 打卡记录标题 -->
+                <Label Text="打卡记录"
                        FontSize="20"
-                       FontAttributes="Bold"/>
-                
-                <HorizontalStackLayout Spacing="10" Margin="0,10,0,0">
-                    <Label Text="NFC状态:"/>
-                    <Label Text="{Binding IsNfcEnabled, Converter={StaticResource BoolToNfcStatusConverter}}"
-                           TextColor="{Binding IsNfcEnabled, Converter={StaticResource BoolToColorConverter}}"/>
-                </HorizontalStackLayout>
-                
-                <HorizontalStackLayout Spacing="10" IsVisible="{Binding LastNfcId, Converter={StaticResource StringToBoolConverter}}">
-                    <Label Text="最后读卡:"/>
-                    <Label Text="{Binding LastNfcId}"/>
-                </HorizontalStackLayout>
-            </VerticalStackLayout>
-        </Frame>
-
-        <!-- 待同步记录提示 -->
-        <Frame Grid.Row="1" 
-               BorderColor="{StaticResource Warning}"
-               CornerRadius="10"
-               Padding="15"
-               Margin="0,0,0,10"
-               IsVisible="{Binding UnsyncedCount, Converter={StaticResource IntToBoolConverter}}">
-            <HorizontalStackLayout Spacing="10">
-                <Label Text="⚠️" FontSize="20"/>
-                <Label Text="{Binding UnsyncedCount, StringFormat='有 {0} 条记录待同步'}"
-                       VerticalOptions="Center"/>
-                <Button Text="立即同步"
-                        Command="{Binding SyncRecordsCommand}"
-                        HorizontalOptions="EndAndExpand"
-                        BackgroundColor="{StaticResource Warning}"
-                        TextColor="White"
-                        Padding="15,5"/>
-            </HorizontalStackLayout>
-        </Frame>
-
-        <!-- 打卡记录列表 -->
-        <Frame Grid.Row="2" 
-               BorderColor="{StaticResource Gray200}"
-               CornerRadius="10"
-               Padding="0">
-            <Grid RowDefinitions="Auto,*">
-                <Label Grid.Row="0"
-                       Text="打卡记录"
-                       FontSize="18"
                        FontAttributes="Bold"
-                       Padding="15,10"/>
-                
-                <CollectionView Grid.Row="1"
-                                ItemsSource="{Binding Records}"
-                                SelectionMode="None">
-                    <CollectionView.ItemTemplate>
+                       TextColor="#1E293B"
+                       Margin="0,0,0,12"/>
+
+                <!-- 打卡记录列表 -->
+                <VerticalStackLayout BindableLayout.ItemsSource="{Binding Records}"
+                                    Spacing="12">
+                    <BindableLayout.ItemTemplate>
                         <DataTemplate x:DataType="models:PatrolRecord">
-                            <Frame Margin="10,5"
-                                   Padding="15"
-                                   BorderColor="{StaticResource Gray200}"
-                                   CornerRadius="8">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <VerticalStackLayout Grid.Column="0" Spacing="5">
-                                        <Label Text="{Binding Location}"
-                                               FontSize="16"
-                                               FontAttributes="Bold"/>
-                                        <Label Text="{Binding CheckInTime, StringFormat='{0:yyyy-MM-dd HH:mm:ss}'}"
-                                               FontSize="14"
-                                               TextColor="{StaticResource Gray600}"/>
-                                        <Label Text="{Binding NfcId, StringFormat='NFC: {0}'}"
-                                               FontSize="12"
-                                               TextColor="{StaticResource Gray500}"/>
-                                    </VerticalStackLayout>
+                            <Frame BorderColor="#E2E8F0"
+                                   CornerRadius="12"
+                                   Padding="16"
+                                   HasShadow="False">
+                                <Grid RowDefinitions="Auto,Auto,Auto" 
+                                      ColumnDefinitions="*,Auto">
+                                    <!-- 位置 -->
+                                    <Label Grid.Row="0" Grid.Column="0"
+                                           Text="{Binding Location}"
+                                           FontSize="18"
+                                           FontAttributes="Bold"
+                                           TextColor="#1E293B"/>
                                     
-                                    <Label Grid.Column="1"
+                                    <!-- 同步状态 -->
+                                    <Label Grid.Row="0" Grid.Column="1"
                                            Text="{Binding IsSynced, Converter={StaticResource BoolToSyncStatusConverter}}"
                                            FontSize="12"
                                            VerticalOptions="Center"
                                            TextColor="{Binding IsSynced, Converter={StaticResource BoolToSyncColorConverter}}"/>
+                                    
+                                    <!-- 时间 -->
+                                    <Label Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                           Text="{Binding CheckInTime, StringFormat='{0:yyyy-MM-dd HH:mm:ss}'}"
+                                           FontSize="14"
+                                           TextColor="#64748B"
+                                           Margin="0,4,0,0"/>
+                                    
+                                    <!-- NFC ID -->
+                                    <Label Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                           Text="{Binding NfcId, StringFormat='NFC: {0}'}"
+                                           FontSize="12"
+                                           TextColor="#94A3B8"
+                                           Margin="0,4,0,0"/>
                                 </Grid>
                             </Frame>
                         </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                    
-                    <CollectionView.EmptyView>
-                        <VerticalStackLayout VerticalOptions="Center"
-                                           HorizontalOptions="Center"
-                                           Padding="20">
-                            <Label Text="📱"
-                                   FontSize="48"
-                                   HorizontalOptions="Center"/>
-                            <Label Text="暂无打卡记录"
-                                   FontSize="16"
-                                   TextColor="{StaticResource Gray600}"
-                                   HorizontalOptions="Center"
-                                   Margin="0,10,0,0"/>
-                            <Label Text="请将手机靠近NFC标签进行打卡"
-                                   FontSize="14"
-                                   TextColor="{StaticResource Gray500}"
-                                   HorizontalOptions="Center"/>
-                        </VerticalStackLayout>
-                    </CollectionView.EmptyView>
-                </CollectionView>
-            </Grid>
-        </Frame>
+                    </BindableLayout.ItemTemplate>
+                    <BindableLayout.EmptyViewTemplate>
+                        <DataTemplate>
+                            <VerticalStackLayout VerticalOptions="Center"
+                                               HorizontalOptions="Center"
+                                               Padding="40"
+                                               Margin="0,40,0,0">
+                                <Label Text="📱"
+                                       FontSize="64"
+                                       HorizontalOptions="Center"
+                                       Opacity="0.3"/>
+                                <Label Text="暂无打卡记录"
+                                       FontSize="16"
+                                       TextColor="#94A3B8"
+                                       HorizontalOptions="Center"
+                                       Margin="0,12,0,0"/>
+                                <Label Text="请将手机靠近NFC标签进行打卡"
+                                       FontSize="14"
+                                       TextColor="#CBD5E1"
+                                       HorizontalOptions="Center"
+                                       Margin="0,4,0,0"/>
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </BindableLayout.EmptyViewTemplate>
+                </VerticalStackLayout>
 
-        <!-- 底部说明 -->
-        <Label Grid.Row="3"
-               Text="提示: 支持息屏和锁屏后读卡,无需打开应用"
-               FontSize="12"
-               TextColor="{StaticResource Gray500}"
-               HorizontalTextAlignment="Center"
-               Margin="0,10,0,0"/>
+            </VerticalStackLayout>
+        </ScrollView>
+
     </Grid>
 
 </ContentPage>
