@@ -96,38 +96,18 @@ public partial class MainViewModel : ObservableObject
         try
         {
             LastNfcId = e.TagId;
-            CurrentLocation = e.Location ?? $"位置 {e.TagId.Substring(0, Math.Min(8, e.TagId.Length))}";
+            var cardNo = e.TagId;
 
-            // 保存到数据库
-            var record = new PatrolRecord
-            {
-                Location = CurrentLocation,
-                NfcId = e.TagId,
-                CheckInTime = e.ReadTime,
-                IsSynced = false
-            };
-
-            await _databaseService.SaveRecordAsync(record);
-
-            // 语音播报 - 增加"巡更成功"
-            var announcement = $"{CurrentLocation}, {e.ReadTime:HH点mm分}, 巡更成功";
-            await _ttsService.SpeakAsync(announcement);
-
-            // 刷新列表
-            await LoadRecordsAsync();
-
-            // 尝试上传
+            // 检查网络并调用 API
             if (_apiService.IsNetworkAvailable())
             {
-                var uploaded = await _apiService.UploadRecordAsync(record);
-                if (uploaded)
-                {
-                    await _databaseService.MarkAsSyncedAsync(record.Id);
-                    await LoadRecordsAsync();
-                }
+                await ProcessCardWithApiAsync(cardNo, e.ReadTime);
             }
-
-            // 已取消弹窗提示,改为静默打卡
+            else
+            {
+                // 无网络，使用离线模式
+                await ProcessCardOfflineAsync(cardNo, e.ReadTime);
+            }
         }
         catch (Exception ex)
         {
@@ -136,6 +116,166 @@ public partial class MainViewModel : ObservableObject
             {
                 await Application.Current!.MainPage!.DisplayAlert("错误", $"打卡失败: {ex.Message}", "确定");
             });
+        }
+    }
+
+    /// <summary>
+    /// 有网络时通过 API 处理卡
+    /// </summary>
+    private async Task ProcessCardWithApiAsync(string cardNo, DateTime readTime)
+    {
+        try
+        {
+            // 1. 调用 get_card API 获取巡更点信息
+            var patrolPoint = await _apiService.GetCardAsync(cardNo);
+
+            if (patrolPoint == null || string.IsNullOrEmpty(patrolPoint.LocationName))
+            {
+                // 卡不存在，弹窗让用户输入巡更点位置
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await HandleNewCardAsync(cardNo, readTime);
+                });
+            }
+            else
+            {
+                // 卡存在，执行打卡
+                await HandleExistingCardAsync(cardNo, patrolPoint.LocationName, readTime);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"API处理失败: {ex.Message}");
+            // API 失败时使用离线模式
+            await ProcessCardOfflineAsync(cardNo, readTime);
+        }
+    }
+
+    /// <summary>
+    /// 处理新卡（卡不存在）- 弹窗输入位置
+    /// </summary>
+    private async Task HandleNewCardAsync(string cardNo, DateTime readTime)
+    {
+        try
+        {
+            // 弹窗提示输入巡更点位置
+            string? locationName = await Application.Current!.MainPage!.DisplayPromptAsync(
+                "新巡更点",
+                "请输入巡更点位置:",
+                "确定",
+                "取消",
+                "例如: 义乌店0101",
+                maxLength: 100,
+                keyboard: Keyboard.Text);
+
+            if (string.IsNullOrWhiteSpace(locationName))
+            {
+                await _ttsService.SpeakAsync("已取消添加巡更点");
+                return;
+            }
+
+            CurrentLocation = locationName;
+
+            // 调用 insert_address API 添加巡更点
+            var success = await _apiService.InsertAddressAsync(cardNo, locationName);
+
+            if (success)
+            {
+                // 语音提示添加成功
+                await _ttsService.SpeakAsync($"添加{locationName}巡更点成功，请重新打卡");
+
+                // 保存到本地数据库（标记为已同步，因为是新添加的点）
+                var record = new PatrolRecord
+                {
+                    Location = $"[新增] {locationName}",
+                    NfcId = cardNo,
+                    CheckInTime = readTime,
+                    IsSynced = true
+                };
+                await _databaseService.SaveRecordAsync(record);
+                await LoadRecordsAsync();
+            }
+            else
+            {
+                await _ttsService.SpeakAsync("添加巡更点失败，请检查网络后重试");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"添加新巡更点失败: {ex.Message}");
+            await _ttsService.SpeakAsync("添加巡更点失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理已存在的卡 - 打卡
+    /// </summary>
+    private async Task HandleExistingCardAsync(string cardNo, string locationName, DateTime readTime)
+    {
+        try
+        {
+            CurrentLocation = locationName;
+
+            // 保存到本地数据库
+            var record = new PatrolRecord
+            {
+                Location = locationName,
+                NfcId = cardNo,
+                CheckInTime = readTime,
+                IsSynced = false
+            };
+            await _databaseService.SaveRecordAsync(record);
+
+            // 语音播报打卡成功
+            await _ttsService.SpeakAsync($"{locationName}打卡成功");
+
+            // 刷新列表
+            await LoadRecordsAsync();
+
+            // 调用 insert_patrol API 插入巡更记录
+            var success = await _apiService.InsertPatrolAsync(cardNo, locationName);
+            if (success)
+            {
+                await _databaseService.MarkAsSyncedAsync(record.Id);
+                await LoadRecordsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"打卡处理失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 无网络时离线处理
+    /// </summary>
+    private async Task ProcessCardOfflineAsync(string cardNo, DateTime readTime)
+    {
+        try
+        {
+            // 离线模式：使用卡号前8位作为临时位置标识
+            var tempLocation = $"离线-{cardNo.Substring(0, Math.Min(8, cardNo.Length))}";
+            CurrentLocation = tempLocation;
+
+            // 保存到本地数据库，标记为未同步
+            var record = new PatrolRecord
+            {
+                Location = tempLocation,
+                NfcId = cardNo,
+                CheckInTime = readTime,
+                IsSynced = false
+            };
+            await _databaseService.SaveRecordAsync(record);
+
+            // 语音提示
+            await _ttsService.SpeakAsync($"离线打卡成功，待网络恢复后自动同步");
+
+            // 刷新列表
+            await LoadRecordsAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"离线处理失败: {ex.Message}");
         }
     }
 
@@ -157,21 +297,42 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            var uploaded = await _apiService.UploadRecordsAsync(unsyncedRecords);
-            if (uploaded)
+            int successCount = 0;
+            foreach (var record in unsyncedRecords)
             {
-                foreach (var record in unsyncedRecords)
+                // 对于离线记录，先查询卡信息
+                if (record.Location.StartsWith("离线-"))
                 {
-                    await _databaseService.MarkAsSyncedAsync(record.Id);
+                    var patrolPoint = await _apiService.GetCardAsync(record.NfcId);
+                    if (patrolPoint != null && !string.IsNullOrEmpty(patrolPoint.LocationName))
+                    {
+                        // 更新位置名称
+                        record.Location = patrolPoint.LocationName;
+                        await _databaseService.SaveRecordAsync(record);
+                        
+                        // 插入巡更记录
+                        var success = await _apiService.InsertPatrolAsync(record.NfcId, patrolPoint.LocationName);
+                        if (success)
+                        {
+                            await _databaseService.MarkAsSyncedAsync(record.Id);
+                            successCount++;
+                        }
+                    }
                 }
+                else
+                {
+                    // 正常记录，直接上传
+                    var success = await _apiService.InsertPatrolAsync(record.NfcId, record.Location);
+                    if (success)
+                    {
+                        await _databaseService.MarkAsSyncedAsync(record.Id);
+                        successCount++;
+                    }
+                }
+            }
 
-                await LoadRecordsAsync();
-                await Application.Current!.MainPage!.DisplayAlert("成功", $"已同步 {unsyncedRecords.Count} 条记录", "确定");
-            }
-            else
-            {
-                await Application.Current!.MainPage!.DisplayAlert("失败", "同步失败,请稍后重试", "确定");
-            }
+            await LoadRecordsAsync();
+            await Application.Current!.MainPage!.DisplayAlert("完成", $"已同步 {successCount}/{unsyncedRecords.Count} 条记录", "确定");
         }
         catch (Exception ex)
         {
@@ -195,19 +356,37 @@ public partial class MainViewModel : ObservableObject
                         var unsyncedRecords = await _databaseService.GetUnsyncedRecordsAsync();
                         if (unsyncedRecords.Count > 0)
                         {
-                            var uploaded = await _apiService.UploadRecordsAsync(unsyncedRecords);
-                            if (uploaded)
+                            foreach (var record in unsyncedRecords)
                             {
-                                foreach (var record in unsyncedRecords)
+                                if (record.Location.StartsWith("离线-"))
                                 {
-                                    await _databaseService.MarkAsSyncedAsync(record.Id);
+                                    var patrolPoint = await _apiService.GetCardAsync(record.NfcId);
+                                    if (patrolPoint != null && !string.IsNullOrEmpty(patrolPoint.LocationName))
+                                    {
+                                        record.Location = patrolPoint.LocationName;
+                                        await _databaseService.SaveRecordAsync(record);
+                                        
+                                        var success = await _apiService.InsertPatrolAsync(record.NfcId, patrolPoint.LocationName);
+                                        if (success)
+                                        {
+                                            await _databaseService.MarkAsSyncedAsync(record.Id);
+                                        }
+                                    }
                                 }
-
-                                await MainThread.InvokeOnMainThreadAsync(async () =>
+                                else
                                 {
-                                    await LoadRecordsAsync();
-                                });
+                                    var success = await _apiService.InsertPatrolAsync(record.NfcId, record.Location);
+                                    if (success)
+                                    {
+                                        await _databaseService.MarkAsSyncedAsync(record.Id);
+                                    }
+                                }
                             }
+
+                            await MainThread.InvokeOnMainThreadAsync(async () =>
+                            {
+                                await LoadRecordsAsync();
+                            });
                         }
                     }
                 }
