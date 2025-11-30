@@ -158,6 +158,9 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            // 语音提示需要添加新巡更点
+            await _ttsService.SpeakAsync("该卡未登记，请输入巡更点位置");
+            
             // 弹窗提示输入巡更点位置
             string? locationName = await Application.Current!.MainPage!.DisplayPromptAsync(
                 "新巡更点",
@@ -177,9 +180,9 @@ public partial class MainViewModel : ObservableObject
             CurrentLocation = locationName;
 
             // 调用 insert_address API 添加巡更点
-            var success = await _apiService.InsertAddressAsync(cardNo, locationName);
+            var errorMsg = await _apiService.InsertAddressAsync(cardNo, locationName);
 
-            if (success)
+            if (errorMsg == null)
             {
                 // 语音提示添加成功
                 await _ttsService.SpeakAsync($"添加{locationName}巡更点成功，请重新打卡");
@@ -197,7 +200,11 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
-                await _ttsService.SpeakAsync("添加巡更点失败，请检查网络后重试");
+                System.Diagnostics.Debug.WriteLine($"[HandleNewCard] 添加巡更点失败: {errorMsg}");
+                await _ttsService.SpeakAsync($"添加巡更点失败，{errorMsg}");
+                
+                // 显示详细错误
+                await Application.Current!.MainPage!.DisplayAlert("添加失败", errorMsg, "确定");
             }
         }
         catch (Exception ex)

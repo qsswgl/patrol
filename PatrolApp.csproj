@@ -39,6 +39,7 @@
 		<AndroidPackageFormat>apk</AndroidPackageFormat>
 		<AndroidUseAapt2>true</AndroidUseAapt2>
 		<AndroidCreatePackagePerAbi>false</AndroidCreatePackagePerAbi>
+		<RuntimeIdentifiers Condition="$(TargetFramework.Contains('android'))">android-arm;android-arm64;android-x86;android-x64</RuntimeIdentifiers>
 	</PropertyGroup>
 
 	<ItemGroup>

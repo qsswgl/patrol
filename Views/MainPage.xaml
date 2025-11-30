@@ -7,23 +7,42 @@
              x:DataType="viewmodels:MainViewModel"
              BackgroundColor="White">
 
-    <Grid RowDefinitions="Auto,*" Padding="0">
+    <Grid RowDefinitions="Auto,Auto,*" Padding="0">
         
-        <!-- 紫色标题栏 -->
+        <!-- 顶部标题栏 - 轻松软件 -->
         <BoxView Grid.Row="0" 
                  Color="#6B46C1" 
-                 HeightRequest="70"/>
-        <Label Grid.Row="0"
-               Text="巡更打卡"
-               FontSize="24"
-               FontAttributes="Bold"
-               TextColor="White"
-               VerticalOptions="Center"
-               HorizontalOptions="Start"
-               Margin="20,0"/>
+                 HeightRequest="50"/>
+        <Grid Grid.Row="0" Margin="20,0">
+            <Label Text="轻松软件"
+                   FontSize="20"
+                   FontAttributes="Bold"
+                   TextColor="White"
+                   VerticalOptions="Center"
+                   HorizontalOptions="Start"/>
+            <Label Text="V251130.1"
+                   FontSize="12"
+                   TextColor="White"
+                   Opacity="0.8"
+                   VerticalOptions="Center"
+                   HorizontalOptions="End"/>
+        </Grid>
+
+        <!-- 紫色标题栏 - 巡更打卡 -->
+        <BoxView Grid.Row="1" 
+                 Color="#7C3AED" 
+                 HeightRequest="50"/>
+        <Grid Grid.Row="1" Margin="20,0">
+            <Label Text="巡更打卡"
+                   FontSize="24"
+                   FontAttributes="Bold"
+                   TextColor="White"
+                   VerticalOptions="Center"
+                   HorizontalOptions="Start"/>
+        </Grid>
 
         <!-- 主内容区域 -->
-        <ScrollView Grid.Row="1">
+        <ScrollView Grid.Row="2">
             <VerticalStackLayout Spacing="0" Padding="20">
                 
                 <!-- 当前位置卡片 -->

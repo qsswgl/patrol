@@ -1,6 +1,7 @@
 using Android.App;
 using Android.Content;
 using Android.Nfc;
+using Android.Nfc.Tech;
 using Android.OS;
 using Android.Runtime;
 using Application = Android.App.Application;
@@ -12,6 +13,7 @@ public partial class NfcService
     private NfcAdapter? _nfcAdapter;
     private PendingIntent? _pendingIntent;
     private IntentFilter[]? _intentFilters;
+    private string[][]? _techLists;
     private Activity? _activity;
 
     partial void PlatformInit()
@@ -35,14 +37,30 @@ public partial class NfcService
             
         _pendingIntent = PendingIntent.GetActivity(_activity, 0, intent, flags);
 
-        // 设置IntentFilter
-        var ndefDetected = new IntentFilter(NfcAdapter.ActionNdefDiscovered);
-        ndefDetected.AddDataType("*/*");
-        
+        // 设置IntentFilter - 优先使用 TAG_DISCOVERED 确保兼容性
         var tagDetected = new IntentFilter(NfcAdapter.ActionTagDiscovered);
         var techDetected = new IntentFilter(NfcAdapter.ActionTechDiscovered);
+        var ndefDetected = new IntentFilter(NfcAdapter.ActionNdefDiscovered);
+        try
+        {
+            ndefDetected.AddDataType("*/*");
+        }
+        catch { }
 
-        _intentFilters = new[] { ndefDetected, tagDetected, techDetected };
+        _intentFilters = new[] { tagDetected, techDetected, ndefDetected };
+        
+        // 添加所有NFC技术类型支持 - 关键：华为等设备需要明确指定tech-list
+        _techLists = new string[][] {
+            new string[] { Java.Lang.Class.FromType(typeof(NfcA)).Name },
+            new string[] { Java.Lang.Class.FromType(typeof(NfcB)).Name },
+            new string[] { Java.Lang.Class.FromType(typeof(NfcF)).Name },
+            new string[] { Java.Lang.Class.FromType(typeof(NfcV)).Name },
+            new string[] { Java.Lang.Class.FromType(typeof(IsoDep)).Name },
+            new string[] { Java.Lang.Class.FromType(typeof(MifareClassic)).Name },
+            new string[] { Java.Lang.Class.FromType(typeof(MifareUltralight)).Name },
+            new string[] { Java.Lang.Class.FromType(typeof(Ndef)).Name },
+            new string[] { Java.Lang.Class.FromType(typeof(NdefFormatable)).Name },
+        };
     }
 
     partial void PlatformStartListening()
@@ -52,11 +70,14 @@ public partial class NfcService
 
         try
         {
+            // 使用 tech-list 确保所有类型的 NFC 标签都能被捕获
             _nfcAdapter.EnableForegroundDispatch(
                 _activity,
                 _pendingIntent,
                 _intentFilters,
-                null);
+                _techLists);
+            
+            System.Diagnostics.Debug.WriteLine("NFC前台调度已启用");
         }
         catch (Exception ex)
         {
