@@ -20,7 +20,7 @@
                    TextColor="White"
                    VerticalOptions="Center"
                    HorizontalOptions="Start"/>
-            <Label Text="V251130.1"
+            <Label Text="V251201.1"
                    FontSize="12"
                    TextColor="White"
                    Opacity="0.8"

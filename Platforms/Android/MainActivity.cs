@@ -29,6 +29,7 @@ public class MainActivity : MauiAppCompatActivity
     protected override void OnNewIntent(Intent? intent)
     {
         base.OnNewIntent(intent);
+        Intent = intent; // 更新当前Intent
         
         // 处理新的NFC Intent (息屏、锁屏后读卡会触发)
         HandleNfcIntent(intent);
@@ -38,17 +39,23 @@ public class MainActivity : MauiAppCompatActivity
     {
         base.OnResume();
         
-        // 启动NFC监听
+        // 每次恢复时都重新启动NFC监听 - 解决从后台恢复后NFC不工作的问题
         var nfcService = IPlatformApplication.Current?.Services.GetService<NfcService>();
         nfcService?.StartListening();
+        
+        System.Diagnostics.Debug.WriteLine("MainActivity.OnResume - NFC监听已启动");
     }
 
     protected override void OnPause()
     {
         base.OnPause();
         
-        // 不要停止NFC监听,以支持后台读卡
-        // 如果需要支持息屏和锁屏读卡,这里不应该停止
+        // 暂停时停止前台调度，让系统可以处理NFC
+        // 这是Android前台调度的标准做法
+        var nfcService = IPlatformApplication.Current?.Services.GetService<NfcService>();
+        (nfcService as Services.NfcService)?.StopListening();
+        
+        System.Diagnostics.Debug.WriteLine("MainActivity.OnPause - NFC监听已停止");
     }
 
     private void HandleNfcIntent(Intent? intent)

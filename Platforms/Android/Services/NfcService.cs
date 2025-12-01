@@ -15,10 +15,23 @@ public partial class NfcService
     private IntentFilter[]? _intentFilters;
     private string[][]? _techLists;
     private Activity? _activity;
+    private bool _isListening = false;
 
     partial void PlatformInit()
     {
+        InitializeNfc();
+    }
+    
+    private void InitializeNfc()
+    {
         _activity = Platform.CurrentActivity;
+        
+        if (_activity == null)
+        {
+            System.Diagnostics.Debug.WriteLine("Activity为空，无法初始化NFC");
+            return;
+        }
+        
         _nfcAdapter = NfcAdapter.GetDefaultAdapter(_activity);
         
         if (_nfcAdapter == null)
@@ -27,7 +40,7 @@ public partial class NfcService
             return;
         }
 
-        // 创建PendingIntent
+        // 创建PendingIntent - 每次都重新创建以确保使用最新的Activity
         var intent = new Intent(_activity, _activity.GetType())
             .AddFlags(ActivityFlags.SingleTop);
         
@@ -61,15 +74,43 @@ public partial class NfcService
             new string[] { Java.Lang.Class.FromType(typeof(Ndef)).Name },
             new string[] { Java.Lang.Class.FromType(typeof(NdefFormatable)).Name },
         };
+        
+        System.Diagnostics.Debug.WriteLine("NFC初始化完成");
     }
 
     partial void PlatformStartListening()
     {
-        if (_nfcAdapter == null || _activity == null)
-            return;
-
         try
         {
+            // 获取当前Activity，确保使用最新的
+            var currentActivity = Platform.CurrentActivity;
+            
+            // 如果Activity变化了，需要重新初始化
+            if (currentActivity != _activity || _pendingIntent == null)
+            {
+                System.Diagnostics.Debug.WriteLine("Activity已变化，重新初始化NFC");
+                
+                // 先停止旧的监听
+                if (_isListening && _nfcAdapter != null && _activity != null)
+                {
+                    try
+                    {
+                        _nfcAdapter.DisableForegroundDispatch(_activity);
+                    }
+                    catch { }
+                    _isListening = false;
+                }
+                
+                // 重新初始化
+                InitializeNfc();
+            }
+            
+            if (_nfcAdapter == null || _activity == null || _pendingIntent == null)
+            {
+                System.Diagnostics.Debug.WriteLine("NFC未正确初始化");
+                return;
+            }
+
             // 使用 tech-list 确保所有类型的 NFC 标签都能被捕获
             _nfcAdapter.EnableForegroundDispatch(
                 _activity,
@@ -77,11 +118,13 @@ public partial class NfcService
                 _intentFilters,
                 _techLists);
             
+            _isListening = true;
             System.Diagnostics.Debug.WriteLine("NFC前台调度已启用");
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"启动NFC监听失败: {ex.Message}");
+            _isListening = false;
         }
     }
 
@@ -93,6 +136,7 @@ public partial class NfcService
         try
         {
             _nfcAdapter.DisableForegroundDispatch(_activity);
+            _isListening = false;
         }
         catch (Exception ex)
         {
