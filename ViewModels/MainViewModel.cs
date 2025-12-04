@@ -12,6 +12,7 @@ public partial class MainViewModel : ObservableObject
     private readonly NfcService _nfcService;
     private readonly ApiService _apiService;
     private readonly TextToSpeechService _ttsService;
+    private readonly UpdateService _updateService;
 
     [ObservableProperty]
     private string _currentLocation = "等待读卡...";
@@ -27,6 +28,12 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private int _unsyncedCount = 0;
+    
+    [ObservableProperty]
+    private bool _isUpdating = false;
+    
+    [ObservableProperty]
+    private double _updateProgress = 0;
 
     public ObservableCollection<PatrolRecord> Records { get; } = new();
 
@@ -34,12 +41,14 @@ public partial class MainViewModel : ObservableObject
         DatabaseService databaseService,
         NfcService nfcService,
         ApiService apiService,
-        TextToSpeechService ttsService)
+        TextToSpeechService ttsService,
+        UpdateService updateService)
     {
         _databaseService = databaseService;
         _nfcService = nfcService;
         _apiService = apiService;
         _ttsService = ttsService;
+        _updateService = updateService;
 
         _nfcService.TagRead += OnNfcTagRead;
         
@@ -63,11 +72,220 @@ public partial class MainViewModel : ObservableObject
             _nfcService.EnableBackgroundMode();
 
             await LoadRecordsAsync();
-            await CheckAndSyncRecordsAsync();
+            
+            // 启动时有网络则自动缓存所有卡点
+            await CacheAllCardPointsAsync();
+            
+            // 启动时检查并上传未同步记录
+            await UploadUnsyncedRecordsOnStartupAsync();
+            
+            // 启动后台定期同步
+            StartBackgroundSync();
+            
+            // 检查应用更新
+            await CheckForUpdateAsync();
         }
         catch (Exception ex)
         {
             await Application.Current!.MainPage!.DisplayAlert("错误", $"初始化失败: {ex.Message}", "确定");
+        }
+    }
+    
+    /// <summary>
+    /// 检查应用更新
+    /// </summary>
+    private async Task CheckForUpdateAsync()
+    {
+        try
+        {
+            var updateInfo = await _updateService.CheckForUpdateAsync();
+            if (updateInfo != null)
+            {
+                var result = await Application.Current!.MainPage!.DisplayAlert(
+                    "发现新版本",
+                    $"版本: {updateInfo.Version}\n{updateInfo.Message}\n\n是否立即升级?",
+                    "升级",
+                    "稍后");
+
+                if (result)
+                {
+                    await DownloadAndInstallUpdateAsync(updateInfo);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"检查更新失败: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// 下载并安装更新
+    /// </summary>
+    private async Task DownloadAndInstallUpdateAsync(UpdateInfo updateInfo)
+    {
+        try
+        {
+            // 检查安装权限
+            if (!_updateService.CanInstallUnknownApps())
+            {
+                var grantPermission = await Application.Current!.MainPage!.DisplayAlert(
+                    "需要权限",
+                    "安装更新需要授予「安装未知应用」权限，是否前往设置?",
+                    "去设置",
+                    "取消");
+
+                if (grantPermission)
+                {
+                    _updateService.RequestInstallPermission();
+                }
+                return;
+            }
+
+            IsUpdating = true;
+            UpdateProgress = 0;
+            
+            await _ttsService.SpeakAsync("开始下载更新");
+
+            var progress = new Progress<double>(p =>
+            {
+                UpdateProgress = p;
+            });
+
+            var apkPath = await _updateService.DownloadApkAsync(updateInfo.Url, progress);
+
+            if (!string.IsNullOrEmpty(apkPath))
+            {
+                await _ttsService.SpeakAsync("下载完成，正在安装");
+                _updateService.InstallApk(apkPath);
+            }
+            else
+            {
+                await _ttsService.SpeakAsync("下载失败");
+                await Application.Current!.MainPage!.DisplayAlert("错误", "下载更新失败，请检查网络连接", "确定");
+            }
+        }
+        catch (Exception ex)
+        {
+            await _ttsService.SpeakAsync("更新失败");
+            await Application.Current!.MainPage!.DisplayAlert("错误", $"更新失败: {ex.Message}", "确定");
+        }
+        finally
+        {
+            IsUpdating = false;
+            UpdateProgress = 0;
+        }
+    }
+    
+    /// <summary>
+    /// 启动时缓存所有卡点到本地SQLite
+    /// </summary>
+    private async Task CacheAllCardPointsAsync()
+    {
+        try
+        {
+            // 检查是否有网络
+            if (!_apiService.IsNetworkAvailable())
+            {
+                System.Diagnostics.Debug.WriteLine("无网络，跳过卡点缓存");
+                return;
+            }
+            
+            // 获取所有卡点
+            var allCards = await _apiService.GetAllCardsAsync();
+            if (allCards.Count > 0)
+            {
+                // 转换并保存到本地数据库
+                var cardPoints = allCards.Select(c => new CardPoint
+                {
+                    CardNo = c.CardNo,
+                    LocationName = c.LocationName,
+                    Type = c.Type
+                }).ToList();
+                
+                await _databaseService.SaveCardPointsAsync(cardPoints);
+                System.Diagnostics.Debug.WriteLine($"已缓存 {cardPoints.Count} 个卡点");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"缓存卡点失败: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// 启动时自动上传未同步记录
+    /// </summary>
+    private async Task UploadUnsyncedRecordsOnStartupAsync()
+    {
+        try
+        {
+            // 检查是否有网络
+            if (!_apiService.IsNetworkAvailable())
+            {
+                var unsyncedRecords = await _databaseService.GetUnsyncedRecordsAsync();
+                if (unsyncedRecords.Count > 0)
+                {
+                    await _ttsService.SpeakAsync($"有{unsyncedRecords.Count}条打卡记录待上传，请连接网络");
+                }
+                return;
+            }
+            
+            var records = await _databaseService.GetUnsyncedRecordsAsync();
+            if (records.Count == 0)
+            {
+                return;
+            }
+            
+            int successCount = 0;
+            foreach (var record in records)
+            {
+                try
+                {
+                    // 对于离线记录，先查询卡信息获取真实位置名
+                    string locationName = record.Location;
+                    if (record.Location.StartsWith("离线-"))
+                    {
+                        var patrolPoint = await _apiService.GetCardAsync(record.NfcId);
+                        if (patrolPoint != null && !string.IsNullOrEmpty(patrolPoint.LocationName))
+                        {
+                            locationName = patrolPoint.LocationName;
+                            record.Location = locationName;
+                            await _databaseService.SaveRecordAsync(record);
+                        }
+                        else
+                        {
+                            // 卡未登记，跳过这条记录
+                            continue;
+                        }
+                    }
+                    
+                    // 上传打卡记录
+                    var success = await _apiService.InsertPatrolAsync(record.NfcId, locationName);
+                    if (success)
+                    {
+                        await _databaseService.MarkAsSyncedAsync(record.Id);
+                        successCount++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"上传记录失败: {ex.Message}");
+                }
+            }
+            
+            // 刷新列表
+            await LoadRecordsAsync();
+            
+            // 语音提示上传结果
+            if (successCount > 0)
+            {
+                await _ttsService.SpeakAsync($"上传了{successCount}条打卡记录");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"启动时上传失败: {ex.Message}");
         }
     }
 
@@ -221,6 +439,18 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            // 检查15分钟内是否已打过卡
+            var recentRecord = await _databaseService.GetRecentCheckInAsync(cardNo, 15);
+            if (recentRecord != null)
+            {
+                var lastCheckInTime = recentRecord.CheckInTime.ToString("HH:mm");
+                CurrentLocation = $"{locationName} (已打卡)";
+                
+                // 语音提示已打过卡
+                await _ttsService.SpeakAsync($"{locationName}在{lastCheckInTime}已打卡，无需再打卡");
+                return;
+            }
+            
             CurrentLocation = locationName;
 
             // 保存到本地数据库
@@ -260,22 +490,67 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            // 离线模式：使用卡号前8位作为临时位置标识
-            var tempLocation = $"离线-{cardNo.Substring(0, Math.Min(8, cardNo.Length))}";
-            CurrentLocation = tempLocation;
+            // 检查15分钟内是否已打过卡
+            var recentRecord = await _databaseService.GetRecentCheckInAsync(cardNo, 15);
+            if (recentRecord != null)
+            {
+                var lastCheckInTime = recentRecord.CheckInTime.ToString("HH:mm");
+                var displayLocation = recentRecord.Location ?? "此卡点";
+                CurrentLocation = $"{displayLocation} (已打卡)";
+                
+                // 语音提示已打过卡
+                await _ttsService.SpeakAsync($"{displayLocation}在{lastCheckInTime}已打卡，无需再打卡");
+                return;
+            }
+            
+            // 优先从缓存的卡点信息中获取位置名
+            var cachedCardPoint = await _databaseService.GetCardPointAsync(cardNo);
+            string locationName;
+            
+            if (cachedCardPoint != null && !string.IsNullOrEmpty(cachedCardPoint.LocationName))
+            {
+                // 使用缓存的卡点信息
+                locationName = cachedCardPoint.LocationName;
+            }
+            else
+            {
+                // 没有缓存，从历史打卡记录中查找
+                var existingRecords = await _databaseService.GetRecordsAsync();
+                var existingRecord = existingRecords.FirstOrDefault(r => r.NfcId == cardNo && !r.Location!.StartsWith("离线-"));
+                
+                if (existingRecord != null)
+                {
+                    // 使用历史记录中的位置名
+                    locationName = existingRecord.Location!;
+                }
+                else
+                {
+                    // 都没有，使用卡号作为临时标识
+                    locationName = $"离线-{cardNo.Substring(0, Math.Min(8, cardNo.Length))}";
+                }
+            }
+            
+            CurrentLocation = locationName;
 
             // 保存到本地数据库，标记为未同步
             var record = new PatrolRecord
             {
-                Location = tempLocation,
+                Location = locationName,
                 NfcId = cardNo,
                 CheckInTime = readTime,
                 IsSynced = false
             };
             await _databaseService.SaveRecordAsync(record);
 
-            // 语音提示
-            await _ttsService.SpeakAsync($"离线打卡成功，待网络恢复后自动同步");
+            // 语音提示：打卡成功（如果有卡点名称则播报位置名）
+            if (locationName.StartsWith("离线-"))
+            {
+                await _ttsService.SpeakAsync("打卡成功，无网暂未上传");
+            }
+            else
+            {
+                await _ttsService.SpeakAsync($"{locationName}打卡成功，无网暂未上传");
+            }
 
             // 刷新列表
             await LoadRecordsAsync();
@@ -349,7 +624,15 @@ public partial class MainViewModel : ObservableObject
 
     private async Task CheckAndSyncRecordsAsync()
     {
-        // 后台定期检查并同步
+        // 这个方法已被 StartBackgroundSync 替代
+        await Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// 启动后台定期同步
+    /// </summary>
+    private void StartBackgroundSync()
+    {
         _ = Task.Run(async () =>
         {
             while (true)
@@ -363,43 +646,51 @@ public partial class MainViewModel : ObservableObject
                         var unsyncedRecords = await _databaseService.GetUnsyncedRecordsAsync();
                         if (unsyncedRecords.Count > 0)
                         {
+                            int successCount = 0;
                             foreach (var record in unsyncedRecords)
                             {
-                                if (record.Location.StartsWith("离线-"))
+                                try
                                 {
-                                    var patrolPoint = await _apiService.GetCardAsync(record.NfcId);
-                                    if (patrolPoint != null && !string.IsNullOrEmpty(patrolPoint.LocationName))
+                                    string locationName = record.Location;
+                                    if (record.Location.StartsWith("离线-"))
                                     {
-                                        record.Location = patrolPoint.LocationName;
-                                        await _databaseService.SaveRecordAsync(record);
-                                        
-                                        var success = await _apiService.InsertPatrolAsync(record.NfcId, patrolPoint.LocationName);
-                                        if (success)
+                                        var patrolPoint = await _apiService.GetCardAsync(record.NfcId);
+                                        if (patrolPoint != null && !string.IsNullOrEmpty(patrolPoint.LocationName))
                                         {
-                                            await _databaseService.MarkAsSyncedAsync(record.Id);
+                                            locationName = patrolPoint.LocationName;
+                                            record.Location = locationName;
+                                            await _databaseService.SaveRecordAsync(record);
+                                        }
+                                        else
+                                        {
+                                            continue;
                                         }
                                     }
-                                }
-                                else
-                                {
-                                    var success = await _apiService.InsertPatrolAsync(record.NfcId, record.Location);
+                                    
+                                    var success = await _apiService.InsertPatrolAsync(record.NfcId, locationName);
                                     if (success)
                                     {
                                         await _databaseService.MarkAsSyncedAsync(record.Id);
+                                        successCount++;
                                     }
                                 }
+                                catch { }
                             }
 
-                            await MainThread.InvokeOnMainThreadAsync(async () =>
+                            if (successCount > 0)
                             {
-                                await LoadRecordsAsync();
-                            });
+                                await MainThread.InvokeOnMainThreadAsync(async () =>
+                                {
+                                    await LoadRecordsAsync();
+                                    await _ttsService.SpeakAsync($"后台上传了{successCount}条打卡记录");
+                                });
+                            }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"自动同步失败: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"后台同步失败: {ex.Message}");
                 }
             }
         });

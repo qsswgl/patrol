@@ -60,6 +60,66 @@ public class ApiService
     }
 
     /// <summary>
+    /// 调用 get_all_cards API 获取所有巡更点
+    /// </summary>
+    /// <returns>所有巡更点列表</returns>
+    public async Task<List<PatrolPointInfo>> GetAllCardsAsync()
+    {
+        try
+        {
+            // 调用存储过程获取所有卡点
+            var content = new StringContent("{}", Encoding.UTF8, "application/json");
+            var response = await _httpClient.PostAsync($"{BaseUrl}/get_all_cards", content);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var responseJson = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"get_all_cards 响应: {responseJson}");
+                
+                try
+                {
+                    // 尝试解析为数组格式
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    var dataList = JsonSerializer.Deserialize<List<PatrolPointInfo>>(responseJson, options);
+                    if (dataList != null)
+                    {
+                        return dataList;
+                    }
+                }
+                catch (JsonException)
+                {
+                    // 尝试解析为包装对象格式
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(responseJson);
+                        if (doc.RootElement.TryGetProperty("data", out var dataElement))
+                        {
+                            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                            var dataList = JsonSerializer.Deserialize<List<PatrolPointInfo>>(dataElement.GetRawText(), options);
+                            if (dataList != null)
+                            {
+                                return dataList;
+                            }
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        // 解析失败
+                    }
+                }
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"get_all_cards 请求失败: {response.StatusCode}");
+            return new List<PatrolPointInfo>();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"get_all_cards API调用失败: {ex.Message}");
+            return new List<PatrolPointInfo>();
+        }
+    }
+
+    /// <summary>
     /// 调用 get_card API 获取卡对应的巡更点
     /// </summary>
     /// <param name="cardNo">卡号</param>

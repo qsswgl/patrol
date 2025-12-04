@@ -23,6 +23,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<NfcService>();
         builder.Services.AddSingleton<ApiService>();
         builder.Services.AddSingleton<TextToSpeechService>();
+        builder.Services.AddSingleton<UpdateService>();
         
         // Register ViewModels
         builder.Services.AddSingleton<MainViewModel>();
