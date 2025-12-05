@@ -518,6 +518,176 @@
             background: var(--primary-color);
             border-radius: 10px;
             display: flex;
+
+        /* 微信提示遮罩 */
+        .wechat-mask {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .wechat-mask.show {
+            display: flex;
+        }
+
+        .wechat-arrow {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            width: 80px;
+            height: 80px;
+            animation: bounce 1.5s infinite;
+        }
+
+        .wechat-arrow svg {
+            width: 100%;
+            height: 100%;
+            fill: white;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .wechat-tip {
+            margin-top: 120px;
+            text-align: center;
+            color: white;
+        }
+
+        .wechat-tip h2 {
+            font-size: 22px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .wechat-tip p {
+            font-size: 16px;
+            line-height: 1.8;
+            opacity: 0.9;
+        }
+
+        .wechat-tip .step {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 15px 0;
+            font-size: 18px;
+        }
+
+        .wechat-tip .step-num {
+            width: 30px;
+            height: 30px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .wechat-tip .dots {
+            font-size: 24px;
+            letter-spacing: 4px;
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 8px;
+            margin: 0 5px;
+        }
+
+        /* 安装确认弹窗 */
+        .install-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 5000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .install-modal.show {
+            display: flex;
+        }
+
+        .install-modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            max-width: 320px;
+            width: 100%;
+            animation: modalIn 0.3s ease;
+        }
+
+        .install-modal-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .install-modal-icon svg {
+            width: 45px;
+            height: 45px;
+            fill: white;
+        }
+
+        .install-modal-content h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: var(--text-color);
+        }
+
+        .install-modal-content p {
+            font-size: 14px;
+            color: var(--text-light);
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+
+        .install-modal-btns {
+            display: flex;
+            gap: 12px;
+        }
+
+        .install-modal-btns button {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .install-modal-btns .cancel-btn {
+            background: #E2E8F0;
+            color: var(--text-color);
+        }
+
+        .install-modal-btns .install-btn {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+        }
             align-items: center;
             justify-content: center;
         }
@@ -772,8 +942,127 @@
         <div class="loading-text" id="loadingText">加载中...</div>
     </div>
 
+    <!-- 微信提示遮罩 -->
+    <div class="wechat-mask" id="wechatMask">
+        <div class="wechat-arrow">
+            <svg viewBox="0 0 100 100">
+                <path d="M50 10 L50 60 M30 40 L50 60 L70 40" stroke="white" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="85" cy="15" r="8" fill="white"/>
+                <circle cx="85" cy="15" r="4" fill="#333"/>
+            </svg>
+        </div>
+        <div class="wechat-tip">
+            <h2>📱 请在浏览器中打开</h2>
+            <div class="step">
+                <span class="step-num">1</span>
+                <span>点击右上角 <span class="dots">•••</span> 按钮</span>
+            </div>
+            <div class="step">
+                <span class="step-num">2</span>
+                <span>选择 "在浏览器中打开"</span>
+            </div>
+            <p style="margin-top: 30px; opacity: 0.7;">在浏览器中可以添加到桌面，获得更好体验</p>
+        </div>
+    </div>
+
+    <!-- 安装确认弹窗 -->
+    <div class="install-modal" id="installModal">
+        <div class="install-modal-content">
+            <div class="install-modal-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+            </div>
+            <h2>添加到桌面</h2>
+            <p>将"巡更打卡"添加到桌面，下次可以直接从桌面图标打开，使用更便捷！</p>
+            <div class="install-modal-btns">
+                <button class="cancel-btn" onclick="skipInstall()">暂不需要</button>
+                <button class="install-btn" onclick="confirmInstall()">立即添加</button>
+            </div>
+        </div>
+    </div>
+
     <script src="js/app.js"></script>
     <script>
+        // 检测是否在微信中打开
+        function isWechat() {
+            return /MicroMessenger/i.test(navigator.userAgent);
+        }
+        
+        // 检测是否已安装为 PWA
+        function isInstalledPWA() {
+            return window.matchMedia('(display-mode: standalone)').matches ||
+                   window.navigator.standalone === true;
+        }
+        
+        // 检测是否为移动端浏览器
+        function isMobileBrowser() {
+            return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && !isWechat();
+        }
+        
+        // 页面加载时检测环境
+        document.addEventListener('DOMContentLoaded', function() {
+            // 微信环境：显示提示遮罩
+            if (isWechat()) {
+                document.getElementById('wechatMask').classList.add('show');
+                return;
+            }
+            
+            // 已安装 PWA：正常使用
+            if (isInstalledPWA()) {
+                console.log('已从桌面图标启动');
+                return;
+            }
+            
+            // 移动端浏览器且未安装：延迟显示安装弹窗
+            if (isMobileBrowser()) {
+                // 检查是否已经提示过（本次会话）
+                if (!sessionStorage.getItem('installPrompted')) {
+                    setTimeout(function() {
+                        // 再次检查是否有 beforeinstallprompt 事件
+                        if (window.deferredPrompt || /iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                            document.getElementById('installModal').classList.add('show');
+                            sessionStorage.setItem('installPrompted', 'true');
+                        }
+                    }, 1500);
+                }
+            }
+        });
+        
+        // 跳过安装
+        function skipInstall() {
+            document.getElementById('installModal').classList.remove('show');
+        }
+        
+        // 确认安装
+        function confirmInstall() {
+            const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+            
+            if (isIOS) {
+                // iOS：显示手动添加指引
+                document.getElementById('installModal').classList.remove('show');
+                showToast('请点击底部分享按钮，选择"添加到主屏幕"');
+            } else if (window.deferredPrompt) {
+                // Android：触发安装
+                window.deferredPrompt.prompt();
+                window.deferredPrompt.userChoice.then(function(choiceResult) {
+                    if (choiceResult.outcome === 'accepted') {
+                        showToast('正在添加到桌面...');
+                        // 安装成功后延迟关闭页面
+                        setTimeout(function() {
+                            window.close();
+                        }, 2000);
+                    }
+                    window.deferredPrompt = null;
+                });
+                document.getElementById('installModal').classList.remove('show');
+            } else {
+                // 没有安装事件：显示手动指引
+                document.getElementById('installModal').classList.remove('show');
+                showToast('请点击浏览器菜单，选择"添加到主屏幕"');
+            }
+        }
+        
         // 注册 Service Worker
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {

@@ -49,11 +49,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         await uploadPendingRecords();
     }
     
-    // 监听 PWA 安装提示
+    // 监听 PWA 安装提示（保存到全局变量，供安装弹窗使用）
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
+        window.deferredPrompt = e;
         deferredPrompt = e;
-        showInstallBanner();
+        console.log('PWA 安装事件已捕获');
     });
     
     // 监听 Service Worker 消息
