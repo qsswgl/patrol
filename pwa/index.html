@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#6B46C1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="巡更打卡">
+    <meta name="description" content="轻松软件 - NFC巡更打卡系统">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- iOS Icons -->
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
+    
+    <!-- iOS Splash Screens -->
+    <link rel="apple-touch-startup-image" href="splash/splash-640x1136.png" media="(device-width: 320px) and (device-height: 568px)">
+    <link rel="apple-touch-startup-image" href="splash/splash-750x1334.png" media="(device-width: 375px) and (device-height: 667px)">
+    <link rel="apple-touch-startup-image" href="splash/splash-1242x2208.png" media="(device-width: 414px) and (device-height: 736px)">
+    
+    <title>巡更打卡 - 轻松软件</title>
+    
+    <style>
+        :root {
+            --primary-color: #6B46C1;
+            --primary-dark: #553C9A;
+            --success-color: #48BB78;
+            --warning-color: #ED8936;
+            --danger-color: #F56565;
+            --text-color: #2D3748;
+            --text-light: #718096;
+            --bg-color: #F7FAFC;
+            --card-bg: #FFFFFF;
+            --safe-area-top: env(safe-area-inset-top, 0px);
+            --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            padding-top: var(--safe-area-top);
+            padding-bottom: var(--safe-area-bottom);
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* 顶部标题栏 */
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(107, 70, 193, 0.3);
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header .version {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            padding: 20px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* 状态卡片 */
+        .status-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .status-card .time {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .status-card .date {
+            font-size: 14px;
+            color: var(--text-light);
+            text-align: center;
+        }
+
+        /* NFC 扫描区域 */
+        .nfc-section {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .nfc-icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: pulse 2s infinite;
+            cursor: pointer;
+        }
+
+        .nfc-icon svg {
+            width: 60px;
+            height: 60px;
+            fill: white;
+        }
+
+        .nfc-icon.scanning {
+            animation: scanning 1s infinite;
+        }
+
+        .nfc-icon.success {
+            background: linear-gradient(135deg, var(--success-color), #38A169);
+            animation: none;
+        }
+
+        .nfc-icon.error {
+            background: linear-gradient(135deg, var(--danger-color), #E53E3E);
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(107, 70, 193, 0.4); }
+            50% { transform: scale(1.02); box-shadow: 0 0 0 20px rgba(107, 70, 193, 0); }
+        }
+
+        @keyframes scanning {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .nfc-status {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 8px;
+        }
+
+        .nfc-hint {
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        /* 位置显示 */
+        .location-display {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 15px;
+            font-size: 20px;
+            font-weight: 600;
+            display: none;
+        }
+
+        .location-display.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 打卡记录列表 */
+        .records-section {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .badge {
+            background: var(--warning-color);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .record-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .record-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #E2E8F0;
+        }
+
+        .record-item:last-child {
+            border-bottom: none;
+        }
+
+        .record-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(107, 70, 193, 0.1);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+        }
+
+        .record-icon svg {
+            width: 20px;
+            height: 20px;
+            fill: var(--primary-color);
+        }
+
+        .record-info {
+            flex: 1;
+        }
+
+        .record-location {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--text-color);
+        }
+
+        .record-time {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+
+        .record-status {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .record-status.synced {
+            background: rgba(72, 187, 120, 0.1);
+            color: var(--success-color);
+        }
+
+        .record-status.pending {
+            background: rgba(237, 137, 54, 0.1);
+            color: var(--warning-color);
+        }
+
+        /* 手动输入按钮 */
+        .manual-btn {
+            width: 100%;
+            padding: 15px;
+            background: var(--card-bg);
+            border: 2px dashed var(--primary-color);
+            border-radius: 12px;
+            color: var(--primary-color);
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .manual-btn:active {
+            background: rgba(107, 70, 193, 0.1);
+            transform: scale(0.98);
+        }
+
+        /* 同步按钮 */
+        .sync-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .sync-btn:active {
+            transform: scale(0.98);
+        }
+
+        .sync-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* 底部导航 */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--card-bg);
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            padding-bottom: calc(10px + var(--safe-area-bottom));
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 20px;
+            color: var(--text-light);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .nav-item.active {
+            color: var(--primary-color);
+        }
+
+        .nav-item svg {
+            width: 24px;
+            height: 24px;
+            margin-bottom: 4px;
+        }
+
+        .nav-item span {
+            font-size: 12px;
+        }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            max-width: 400px;
+            animation: modalIn 0.3s ease;
+        }
+
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #E2E8F0;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .modal-input:focus {
+            border-color: var(--primary-color);
+        }
+
+        .modal-btns {
+            display: flex;
+            gap: 10px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .modal-btn.cancel {
+            background: #E2E8F0;
+            color: var(--text-color);
+        }
+
+        .modal-btn.confirm {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        /* Toast 提示 */
+        .toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            z-index: 2000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        /* 安装提示条 */
+        .install-banner {
+            display: none;
+            position: fixed;
+            bottom: 70px;
+            left: 20px;
+            right: 20px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 900;
+            animation: slideUp 0.3s ease;
+        }
+
+        .install-banner.show {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .install-banner-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .install-banner-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--primary-color);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .install-banner-icon svg {
+            width: 28px;
+            height: 28px;
+            fill: white;
+        }
+
+        .install-banner-text {
+            flex: 1;
+        }
+
+        .install-banner-text h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .install-banner-text p {
+            font-size: 12px;
+            color: var(--text-light);
+        }
+
+        .install-banner-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .install-banner-close {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--text-light);
+            cursor: pointer;
+        }
+
+        /* 网络状态指示器 */
+        .network-status {
+            position: fixed;
+            top: var(--safe-area-top);
+            left: 0;
+            right: 0;
+            background: var(--danger-color);
+            color: white;
+            text-align: center;
+            padding: 8px;
+            font-size: 14px;
+            z-index: 1001;
+            display: none;
+        }
+
+        .network-status.show {
+            display: block;
+        }
+
+        /* 加载动画 */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #E2E8F0;
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 15px;
+            color: var(--text-color);
+            font-size: 16px;
+        }
+
+        /* 空记录提示 */
+        .empty-records {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-light);
+        }
+
+        .empty-records svg {
+            width: 60px;
+            height: 60px;
+            fill: #E2E8F0;
+            margin-bottom: 10px;
+        }
+
+        /* 底部留白，避免被导航遮挡 */
+        .content-wrapper {
+            padding-bottom: 80px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 网络状态提示 -->
+    <div class="network-status" id="networkStatus">
+        📡 网络已断开，离线模式运行中
+    </div>
+
+    <!-- 顶部标题栏 -->
+    <header class="header">
+        <h1>轻松软件</h1>
+        <span class="version">PWA v1.0</span>
+    </header>
+
+    <div class="content-wrapper">
+        <main class="main-content">
+            <!-- 时间状态卡片 -->
+            <div class="status-card">
+                <div class="time" id="currentTime">00:00:00</div>
+                <div class="date" id="currentDate">2025年12月5日 星期五</div>
+            </div>
+
+            <!-- NFC 扫描区域 -->
+            <div class="nfc-section">
+                <div class="nfc-icon" id="nfcIcon" onclick="handleNfcClick()">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 18H4V4h16v16zM8.5 8.5h2v7h-2zM13.5 8.5h2v7h-2z"/>
+                    </svg>
+                </div>
+                <div class="nfc-status" id="nfcStatus">点击开始扫描</div>
+                <div class="nfc-hint" id="nfcHint">将手机靠近NFC标签即可打卡</div>
+                <div class="location-display" id="locationDisplay"></div>
+            </div>
+
+            <!-- 手动输入按钮 -->
+            <button class="manual-btn" onclick="showManualInput()">
+                📝 手动输入卡号
+            </button>
+
+            <!-- 打卡记录列表 -->
+            <div class="records-section">
+                <div class="section-header">
+                    <span class="section-title">📋 今日打卡记录</span>
+                    <span class="badge" id="unsyncedBadge" style="display: none;">0 待同步</span>
+                </div>
+                <div class="record-list" id="recordList">
+                    <div class="empty-records">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
+                        </svg>
+                        <p>暂无打卡记录</p>
+                    </div>
+                </div>
+                <button class="sync-btn" id="syncBtn" onclick="syncRecords()">
+                    🔄 同步打卡记录
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- 底部导航 -->
+    <nav class="bottom-nav">
+        <a class="nav-item active" onclick="switchTab('home')">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+            <span>打卡</span>
+        </a>
+        <a class="nav-item" onclick="switchTab('records')">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l4.59-4.59L18 11l-6 6z"/>
+            </svg>
+            <span>记录</span>
+        </a>
+        <a class="nav-item" onclick="switchTab('settings')">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+            <span>设置</span>
+        </a>
+    </nav>
+
+    <!-- 安装提示条 -->
+    <div class="install-banner" id="installBanner">
+        <button class="install-banner-close" onclick="hideInstallBanner()">&times;</button>
+        <div class="install-banner-content">
+            <div class="install-banner-icon">
+                <svg viewBox="0 0 24 24">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                </svg>
+            </div>
+            <div class="install-banner-text">
+                <h3>安装到桌面</h3>
+                <p>添加到主屏幕，使用更便捷</p>
+            </div>
+            <button class="install-banner-btn" onclick="installApp()">安装</button>
+        </div>
+    </div>
+
+    <!-- 手动输入模态框 -->
+    <div class="modal" id="manualModal">
+        <div class="modal-content">
+            <h2 class="modal-title">手动输入卡号</h2>
+            <input type="text" class="modal-input" id="cardInput" placeholder="请输入NFC卡号">
+            <div class="modal-btns">
+                <button class="modal-btn cancel" onclick="hideManualInput()">取消</button>
+                <button class="modal-btn confirm" onclick="submitManualCard()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新巡更点输入模态框 -->
+    <div class="modal" id="newPointModal">
+        <div class="modal-content">
+            <h2 class="modal-title">新巡更点</h2>
+            <p style="text-align: center; color: var(--text-light); margin-bottom: 15px;">该卡未登记，请输入巡更点位置</p>
+            <input type="text" class="modal-input" id="locationInput" placeholder="例如: 义乌店0101">
+            <div class="modal-btns">
+                <button class="modal-btn cancel" onclick="hideNewPointModal()">取消</button>
+                <button class="modal-btn confirm" onclick="submitNewPoint()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- 加载动画 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">加载中...</div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // 注册 Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => {
+                        console.log('Service Worker 注册成功:', reg.scope);
+                    })
+                    .catch(err => {
+                        console.log('Service Worker 注册失败:', err);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
